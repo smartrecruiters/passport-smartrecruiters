@@ -1,10 +1,16 @@
 var express = require('express')
-  , passport = require('passport')
-  , util = require('util')
-  , SmartrecruitersStrategy = require('passport-smartrecruiters').Strategy;
+    , passport = require('passport')
+    , util = require('util')
+    , SmartrecruitersStrategy = require('passport-smartrecruiters').Strategy;
+var cookieParser = require('cookie-parser');
+var bodyParser = require('body-parser');
+var morgan = require('morgan');
+var session = require('express-session');
+var expressLayouts = require('express-ejs-layouts')
 
-var SMARTRECRUITERS_CLIENT_ID = "--insert-smartrecruiters-client-id-here--"
+var SMARTRECRUITERS_CLIENT_ID = "--insert-smartrecruiters-client-id-here--";
 var SMARTRECRUITERS_CLIENT_SECRET = "--insert-smartrecruiters-client-secret-here--";
+
 
 
 // Passport session setup.
@@ -14,12 +20,12 @@ var SMARTRECRUITERS_CLIENT_SECRET = "--insert-smartrecruiters-client-secret-here
 //   the user by ID when deserializing.  However, since this example does not
 //   have a database of user records, the complete Smartrecruiters profile is serialized
 //   and deserialized.
-passport.serializeUser(function(user, done) {
-  done(null, user);
+passport.serializeUser(function (user, done) {
+    done(null, user);
 });
 
-passport.deserializeUser(function(obj, done) {
-  done(null, obj);
+passport.deserializeUser(function (obj, done) {
+    done(null, obj);
 });
 
 
@@ -28,56 +34,52 @@ passport.deserializeUser(function(obj, done) {
 //   credentials (in this case, an accessToken, refreshToken, and Smartrecruiters
 //   profile), and invoke a callback with a user object.
 passport.use(new SmartrecruitersStrategy({
-    clientID: SMARTRECRUITERS_CLIENT_ID,
-    clientSecret: SMARTRECRUITERS_CLIENT_SECRET,
-    callbackURL: "http://127.0.0.1:3000/auth/smartrecruiters/callback"
-  },
-  function(accessToken, refreshToken, profile, done) {
-    // asynchronous verification, for effect...
-    process.nextTick(function () {
+        clientID: SMARTRECRUITERS_CLIENT_ID,
+        clientSecret: SMARTRECRUITERS_CLIENT_SECRET,
+        callbackURL: "http://localhost:3000/auth/smartrecruiters/callback"
+    },
+    function (accessToken, refreshToken, profile, done) {
+        // asynchronous verification, for effect...
+        process.nextTick(function () {
 
-      // To keep the example simple, the user's GitHub profile is returned to
-      // represent the logged-in user.  In a typical application, you would want
-      // to associate the Smartrecruiters account with a user record in your database,
-      // and return that user instead.
-      return done(null, profile);
-    });
-  }
+            // To keep the example simple, the user's GitHub profile is returned to
+            // represent the logged-in user.  In a typical application, you would want
+            // to associate the Smartrecruiters account with a user record in your database,
+            // and return that user instead.
+            return done(null, profile);
+        });
+    }
 ));
 
 
-
-
-var app = express.createServer();
+var app = express();
 
 // configure Express
-app.configure(function() {
-  app.set('views', __dirname + '/views');
-  app.set('view engine', 'ejs');
-  app.use(express.logger());
-  app.use(express.cookieParser());
-  app.use(express.bodyParser());
-  app.use(express.methodOverride());
-  app.use(express.session({ secret: 'keyboard cat' }));
-  // Initialize Passport!  Also use passport.session() middleware, to support
-  // persistent login sessions (recommended).
-  app.use(passport.initialize());
-  app.use(passport.session());
-  app.use(app.router);
-  app.use(express.static(__dirname + '/public'));
+app.set('views', __dirname + '/views');
+app.set('view engine', 'ejs');
+app.use(expressLayouts);
+app.use(morgan('combined'));
+app.use(cookieParser());
+app.use(bodyParser.json());
+app.use(bodyParser.urlencoded({extended: true}));
+app.use(session({ secret: 'keyboard cat', resave: false, saveUninitialized: false}));
+// Initialize Passport!  Also use passport.session() middleware, to support
+// persistent login sessions (recommended).
+app.use(passport.initialize());
+app.use(passport.session());
+app.use(express.static(__dirname + '/public'));
+
+
+app.get('/', function (req, res) {
+    res.render('index', { user: req.user });
 });
 
-
-app.get('/', function(req, res){
-  res.render('index', { user: req.user });
+app.get('/account', ensureAuthenticated, function (req, res) {
+    res.render('account', { user: req.user });
 });
 
-app.get('/account', ensureAuthenticated, function(req, res){
-  res.render('account', { user: req.user });
-});
-
-app.get('/login', function(req, res){
-  res.render('login', { user: req.user });
+app.get('/login', function (req, res) {
+    res.render('login', { user: req.user });
 });
 
 // GET /auth/smartrecruiters
@@ -86,11 +88,11 @@ app.get('/login', function(req, res){
 //   the user to smartrecruiters.com.  After authorization, Smartrecruiters will redirect the user
 //   back to this application at /auth/smartrecruiters/callback
 app.get('/auth/smartrecruiters',
-  passport.authenticate('smartrecruiters'),
-  function(req, res){
-    // The request will be redirected to Smartrecruiters for authentication, so this
-    // function will not be called.
-  });
+    passport.authenticate('smartrecruiters', {scope: ['r_jobs','r_candidates']}),
+    function (req, res) {
+        // The request will be redirected to Smartrecruiters for authentication, so this
+        // function will not be called.
+    });
 
 // GET /auth/smartrecruiters/callback
 //   Use passport.authenticate() as route middleware to authenticate the
@@ -98,14 +100,14 @@ app.get('/auth/smartrecruiters',
 //   login page.  Otherwise, the primary route function function will be called,
 //   which, in this example, will redirect the user to the home page.
 app.get('/auth/smartrecruiters/callback',
-  passport.authenticate('smartrecruiters', { failureRedirect: '/login' }),
-  function(req, res) {
-    res.redirect('/');
-  });
+    passport.authenticate('smartrecruiters', { failureRedirect: '/login' }),
+    function (req, res) {
+        res.redirect('/');
+    });
 
-app.get('/logout', function(req, res){
-  req.logout();
-  res.redirect('/');
+app.get('/logout', function (req, res) {
+    req.logout();
+    res.redirect('/');
 });
 
 app.listen(3000);
@@ -117,6 +119,8 @@ app.listen(3000);
 //   the request will proceed.  Otherwise, the user will be redirected to the
 //   login page.
 function ensureAuthenticated(req, res, next) {
-  if (req.isAuthenticated()) { return next(); }
-  res.redirect('/login')
+    if (req.isAuthenticated()) {
+        return next();
+    }
+    res.redirect('/login')
 }
