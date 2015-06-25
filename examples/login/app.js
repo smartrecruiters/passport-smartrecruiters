@@ -88,7 +88,7 @@ app.get('/login', function (req, res) {
 //   the user to smartrecruiters.com.  After authorization, Smartrecruiters will redirect the user
 //   back to this application at /auth/smartrecruiters/callback
 app.get('/auth/smartrecruiters',
-    passport.authenticate('smartrecruiters', {scope: ['r_jobs','r_candidates']}),
+    passport.authenticate('smartrecruiters', {scope: ['jobs_read','candidates_read']}),
     function (req, res) {
         // The request will be redirected to Smartrecruiters for authentication, so this
         // function will not be called.
